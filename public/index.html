@@ -6,6 +6,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>GeoGebra</title>
     <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
       .outer {
         display: flex;
         flex-direction: column;
@@ -16,7 +24,15 @@
         left: 0;
       }
       .inner {
-        flex: 1;
+        flex: 1 1 auto;
+        position: relative;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+      }
+      #ggb-element {
+        width: 100%;
+        height: 100%;
       }
       .GeoGebraFrame {
         border-width: 0 !important;
@@ -40,7 +56,7 @@
     <div class="outer">
       <div class="inner">
         <div id="ggb-element"></div>
-        <div id="saved-indicator" />
+        <div id="saved-indicator"></div>
       </div>
     </div>
     <script src="GeoGebra/deployggb.js"></script>
@@ -59,6 +75,7 @@
       let saveTimeout = null
       let autosaveTimeout
       const autosaveDelay = 7_500
+      let lastSize = { width: 0, height: 0 }
 
       async function getFile() {
         const propfindResponse = await fetch(path(), { method: 'PROPFIND' })
@@ -112,9 +129,17 @@
       }
 
       const resize = debounce(32, () => {
-        if (window.ggbApplet) {
-          ggbApplet.setSize(ggbElement.parentElement.clientWidth, ggbElement.parentElement.clientHeight)
+        const container = window.ggbElement && window.ggbElement.parentElement
+        if (!window.ggbApplet || !container) {
+          return
         }
+        const width = Math.max(1, Math.floor(container.clientWidth))
+        const height = Math.max(1, Math.floor(container.clientHeight))
+        if (width === lastSize.width && height === lastSize.height) {
+          return
+        }
+        lastSize = { width, height }
+        window.ggbApplet.setSize(width, height)
       })
 
       async function onLoad(event) {
@@ -155,6 +180,11 @@
         applet.inject(ggbElement.id)
 
         window.addEventListener('resize', resize)
+        window.addEventListener('orientationchange', resize)
+
+        if (typeof ResizeObserver === 'function') {
+          new ResizeObserver(resize).observe(ggbElement.parentElement)
+        }
 
         window.addEventListener('keydown', event => {
           if ((navigator.platform === 'MacIntel' ? event.metaKey : event.ctrlKey) && event.key === 's') {
